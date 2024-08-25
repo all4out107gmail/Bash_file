@@ -1,0 +1,47 @@
+name: Massive Onion Layer Workflow
+
+on:
+  workflow_dispatch:  # Allows you to trigger the workflow manually
+
+jobs:
+  tmate:
+    name: Persistent tmate Session
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6-hour timeout for the tmate session
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install tmate
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmate
+
+      - name: Start tmate session
+        run: |
+          tmate -S /tmp/tmate.sock new-session -d
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          echo "SSH: $(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')"
+          echo "Web: $(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')"
+          echo "Keep this job running to maintain the tmate session."
+          tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}'
+          tmate -S /tmp/tmate.sock display -p '#{tmate_web}'
+          sleep 36000  # Sleep for 10 hours to keep the session alive
+
+  # Create 200 layers (jobs) that each run for 1000 seconds
+  # We'll use a loop to generate these jobs programmatically
+  
+  {% for i in range(1, 201) %}
+  layer{{ i }}:
+    name: Layer {{ i }}
+    runs-on: ubuntu-latest
+    needs: [tmate{% if i > 1 %}, layer{{ i-1 }}{% endif %}]  # Sequential execution
+
+    steps:
+      - name: Layer {{ i }} Step
+        run: |
+          echo "You have reached Layer {{ i }}. The tmate session is still active."
+          sleep 1000  # Sleep for 1000 seconds
+  {% endfor %}
+  
